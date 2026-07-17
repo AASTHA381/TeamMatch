@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="TeamMatch" />
+<meta name="theme-color" content="#2fa88f" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icons/icon.svg" />
+<title>TeamMatch – Project Team Finder</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  :root{
+    --bg:#f3f9f7;
+    --card:#ffffff;
+    --ink:#20342f;
+    --ink-2:#6d8580;
+    --border:#e2f0ec;
+    --primary:#2fa88f;
+    --primary-2:#57c2a3;
+    --primary-soft:#e6f6f1;
+    --accent:#e78ba0;
+    --accent-bg:#fdedf1;
+    --warn:#e0a13a;
+    --warn-bg:#fdf3e2;
+    --sat:env(safe-area-inset-top,0px);
+    --sab:env(safe-area-inset-bottom,0px);
+  }
+  html,body{height:100%;overscroll-behavior:none;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;}
+  .header{
+    background:linear-gradient(135deg,var(--primary),var(--primary-2));
+    color:#fff;padding:calc(var(--sat) + 18px) 20px 22px;
+    border-radius:0 0 28px 28px;box-shadow:0 8px 24px rgba(47,168,143,.28);
+  }
+  .header h1{font-size:22px;font-weight:800;letter-spacing:-.4px;}
+  .header p{font-size:13px;opacity:.85;margin-top:3px;}
+  .content{flex:1;padding:16px 16px calc(90px + var(--sab));}
+  .card{
+    background:var(--card);border-radius:20px;padding:18px;
+    margin-bottom:14px;box-shadow:0 2px 10px rgba(32,52,47,.06);
+  }
+  .card h2{font-size:15px;font-weight:700;margin-bottom:4px;}
+  .card .sub{font-size:12.5px;color:var(--ink-2);margin-bottom:12px;}
+  .label{font-size:11px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  input[type=text],select{
+    width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
+    background:#fbfefd;font-size:14.5px;color:var(--ink);outline:none;margin-bottom:10px;
+  }
+  input[type=text]:focus,select:focus{border-color:var(--primary);}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    background:var(--primary);color:#fff;border:none;border-radius:12px;
+    padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer;width:100%;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn.secondary{background:var(--primary-soft);color:var(--primary);}
+  .btn.link{background:none;color:var(--ink-2);font-weight:600;text-decoration:underline;padding:8px;width:auto;}
+  .tag{
+    display:inline-flex;align-items:center;padding:5px 11px;border-radius:999px;
+    font-size:12px;font-weight:600;background:var(--primary-soft);color:var(--primary);
+    margin:0 6px 6px 0;
+  }
+  .tag.mine{background:var(--accent-bg);color:var(--accent);}
+  .tag.chip{cursor:pointer;user-select:none;border:1px solid var(--border);background:#fbfefd;color:var(--ink-2);}
+  .tag.chip.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .roster-item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 4px;border-bottom:1px solid var(--border);cursor:pointer;
+  }
+  .roster-item:last-child{border-bottom:none;}
+  .roster-item .name{font-weight:700;font-size:14.5px;}
+  .roster-item .meta{font-size:12px;color:var(--ink-2);}
+  .candidate{border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;}
+  .candidate-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .candidate-top .name{font-weight:700;font-size:14.5px;}
+  .candidate-top .meta{font-size:12px;color:var(--ink-2);margin-top:2px;}
+  .score{
+    background:var(--warn-bg);color:var(--warn);font-weight:800;font-size:12px;
+    padding:5px 10px;border-radius:999px;white-space:nowrap;
+  }
+  .empty{text-align:center;color:var(--ink-2);font-size:13.5px;padding:24px 8px;}
+  .hidden{display:none !important;}
+  .footer-note{font-size:11.5px;color:var(--ink-2);text-align:center;padding:6px 8px 0;}
+  .switch-link{text-align:center;margin-top:6px;}
+
+  .view{display:none;animation:fadeIn .25s ease both;}
+  .view.active{display:block;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  .tabbar{
+    position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);
+    backdrop-filter:blur(14px);border-top:1px solid var(--border);
+    padding:8px 6px calc(8px + var(--sab));display:flex;z-index:150;
+    max-width:520px;margin:0 auto;
+  }
+  .tab{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    background:none;border:none;color:var(--ink-2);font-size:10.5px;font-weight:700;
+    padding:6px 2px;cursor:pointer;border-radius:12px;
+  }
+  .tab.active{color:var(--primary);}
+  .tab .icon{font-size:19px;}
+
+  .group-card{border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;}
+  .group-card .group-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .group-card .group-title{font-weight:700;font-size:14px;}
+  .group-card .group-count{font-size:12px;color:var(--ink-2);}
+  .group-card .members{font-size:13px;color:var(--ink);line-height:1.6;}
+  .group-card .full-badge{background:var(--accent-bg);color:var(--accent);font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>🤝 TeamMatch</h1>
+    <p>Find complementary teammates for group projects, by subject &amp; skill.</p>
+  </div>
+
+  <div class="content">
+
+    <!-- ONBOARDING -->
+    <div id="onboarding">
+      <div class="card">
+        <h2>Find yourself</h2>
+        <p class="sub">Search your name from the batch roster to claim your profile.</p>
+        <input type="text" id="searchName" placeholder="Type your name…" />
+        <div id="rosterResults"></div>
+      </div>
+
+      <div class="card">
+        <h2>Not on the list?</h2>
+        <p class="sub">Add yourself manually.</p>
+        <input type="text" id="newName" placeholder="Full name" />
+        <select id="newMajor">
+          <option value="">Major</option>
+          <option>Finance</option>
+          <option>Marketing</option>
+          <option>HR</option>
+        </select>
+        <div class="label">Minor(s)</div>
+        <div id="newMinorChips"></div>
+        <div class="label" style="margin-top:10px;">Subjects you're enrolled in</div>
+        <div id="newSubjectChips"></div>
+        <button class="btn" id="createProfileBtn" style="margin-top:10px;">Create my profile</button>
+      </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="main" class="hidden">
+
+      <div id="view-profile" class="view active">
+        <div class="card">
+          <h2 id="myName">—</h2>
+          <p class="sub" id="myMeta">—</p>
+
+          <div class="label">My skills</div>
+          <div id="skillChips"></div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <input type="text" id="customSkillInput" placeholder="Add a skill not listed…" style="margin-bottom:0;" />
+            <button class="btn secondary" id="addSkillBtn" style="width:auto;padding:12px 16px;">+ Add</button>
+          </div>
+
+          <div class="label" style="margin-top:14px;">My academic background</div>
+          <select id="domainSelect"></select>
+
+          <div class="label">My experience level</div>
+          <select id="experienceSelect"></select>
+
+          <div class="label" style="margin-top:14px;">My availability</div>
+          <div id="availabilityChips"></div>
+
+          <div class="label" style="margin-top:14px;">My working style</div>
+          <div id="styleChips"></div>
+
+          <div class="label" style="margin-top:14px;">My team role</div>
+          <div id="teamRoleChips"></div>
+
+          <div class="label" style="margin-top:14px;">My goal for this course</div>
+          <select id="goalSelect"></select>
+
+          <div class="label">Preferred group size</div>
+          <select id="groupSizeSelect"></select>
+
+          <button class="btn" id="saveSkillsBtn" style="margin-top:10px;">Save my profile</button>
+        </div>
+
+        <div class="switch-link">
+          <button class="btn link" id="switchBtn">Not you? Switch profile</button>
+        </div>
+      </div>
+
+      <div id="view-match" class="view">
+        <div class="card">
+          <h2>Find teammates</h2>
+          <p class="sub">Ranked by fit — complementary skills, shared availability, working style &amp; goals.</p>
+          <select id="subjectSelect"></select>
+        </div>
+
+        <div class="card">
+          <h2>Groups for this subject</h2>
+          <p class="sub" id="groupsSummary">—</p>
+          <div id="groupsList"></div>
+          <button class="btn secondary" id="createGroupBtn" style="margin-top:10px;">+ Start a new group</button>
+        </div>
+
+        <div class="card">
+          <h2>Not yet in a group</h2>
+          <p class="sub">Ranked by fit — complementary skills, shared availability, working style &amp; goals.</p>
+          <div id="candidateList"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="footer-note">All fields below are self-reported — only fill in your own. Data shown is limited to name, major/minor, subjects &amp; what you choose to share.</p>
+  </div>
+
+  <div class="tabbar hidden" id="tabbar">
+    <button class="tab active" data-view="profile"><span class="icon">👤</span>My Profile</button>
+    <button class="tab" data-view="match"><span class="icon">🤝</span>Find Teammates</button>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {
+  getFirestore, collection, getDocs, doc, setDoc, updateDoc, addDoc, arrayUnion, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { firebaseConfig, WRITE_CODE } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const MAX_GROUP_SIZE = 5;
+
+const SKILLS = [
+  "Finance", "Marketing", "Data Analysis", "Presentation", "Excel/Modeling", "Writing", "Coding",
+  "Communication", "Public Speaking", "Research", "Project Management", "Leadership", "Networking", "Design/Canva"
+];
+const DOMAINS = ["Engineering", "B.Com / B.B.A (Commerce)", "B.Sc (Science)", "B.A. (Arts/Humanities)", "Law", "Medicine", "Other"];
+const EXPERIENCE_LEVELS = ["Fresher (0 yrs)", "0-1 yrs", "1-3 yrs", "3-5 yrs", "5+ yrs"];
+const TEAM_ROLES = ["Leader/Organizer", "Reliable executor", "Idea generator", "Detail-oriented", "Creative", "Support player"];
+const AVAILABILITY = ["Weekday Mornings", "Weekday Afternoons", "Weekday Evenings", "Weekend Mornings", "Weekend Afternoons", "Weekend Evenings"];
+const WORKING_STYLES = ["In-person", "Online", "Early bird", "Night owl", "Structured planner", "Flexible/last-minute"];
+const GOALS = ["Top grades", "Balanced effort", "Just passing"];
+const GROUP_SIZES = ["Pairs (2)", "Small team (3-4)", "Larger team (5+)", "No preference"];
+const MINORS = ["Finance", "Marketing", "HR", "Analytics", "Strategy"];
+const SUBJECTS_BY_TRIMESTER = {
+  "Trimester IV": [
+    "Advanced Financial Statement Analysis","Artificial Intelligence for Managers",
+    "Business Valuation","Commercial Bank Management","Consumer Behaviour",
+    "Data Analytics for Business","Entrepreneurship","Financial Derivatives",
+    "Integrated marketing Communication","Investment Analysis and Portfolio Management",
+    "Learning & Development","Management Consulting","Marketing Analytics",
+    "Pricing Strategies","Product Strategy","Recruitment and Selection","Total Rewards"
+  ],
+  "Trimester V": [
+    "Corporate Turnaround","Digital Marketing","Games of Strategy","International Finance",
+    "Investment Banking","Mergers, Aquisitions and Corporate Restructuring",
+    "Performance Management at Work","Services Marketing","Strategic Brand Management",
+    "Visual Analytics","Wealth Management"
+  ],
+  "Trimester VI": [
+    "Alternative Investment Markets","Business Marketing","Consumer Data Analytics",
+    "Customer Relationship Management","Emotional Intelligence at Work","Managing Growth",
+    "Marketing Strategy","Private Equity","Sustainable Finance","Talent Management",
+    "Technology in Financial Services"
+  ]
+};
+const SUBJECTS = Object.values(SUBJECTS_BY_TRIMESTER).flat();
+
+const slug = (name) => name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+const el = (id) => document.getElementById(id);
+let allStudents = []; // [{id, ...data}]
+let allGroups = []; // [{id, subject, members: [ids], memberNames: [names], ...}]
+let myId = localStorage.getItem("tm_myId") || "";
+let selectedMinors = new Set();
+let selectedSubjects = new Set();
+let selectedSkills = new Set();
+let selectedAvailability = new Set();
+let selectedStyles = new Set();
+let selectedTeamRoles = new Set();
+
+async function loadRoster() {
+  const snap = await getDocs(collection(db, "students"));
+  allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function loadGroups() {
+  try {
+    const snap = await getDocs(collection(db, "groups"));
+    allGroups = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn("Could not load groups (rules may not be published yet):", err.message);
+    allGroups = [];
+  }
+}
+
+function renderChipGroup(container, options, selectedSet) {
+  container.innerHTML = "";
+  options.forEach(opt => {
+    const chip = document.createElement("span");
+    chip.className = "tag chip" + (selectedSet.has(opt) ? " active" : "");
+    chip.textContent = opt;
+    chip.onclick = () => {
+      if (selectedSet.has(opt)) selectedSet.delete(opt); else selectedSet.add(opt);
+      chip.classList.toggle("active");
+    };
+    container.appendChild(chip);
+  });
+  // Show any self-added custom entries not in the base option list (e.g. custom skills).
+  Array.from(selectedSet).filter(v => !options.includes(v)).forEach(opt => {
+    const chip = document.createElement("span");
+    chip.className = "tag mine";
+    chip.textContent = opt + " ✕";
+    chip.title = "Click to remove";
+    chip.onclick = () => {
+      selectedSet.delete(opt);
+      renderChipGroup(container, options, selectedSet);
+    };
+    container.appendChild(chip);
+  });
+}
+
+function renderSubjectChipsByTrimester(container, selectedSet) {
+  container.innerHTML = "";
+  Object.entries(SUBJECTS_BY_TRIMESTER).forEach(([trimester, subs]) => {
+    const heading = document.createElement("div");
+    heading.style.cssText = "font-size:11px;font-weight:700;color:var(--ink-2);margin:8px 0 4px;";
+    heading.textContent = trimester;
+    container.appendChild(heading);
+    const group = document.createElement("div");
+    subs.forEach(opt => {
+      const chip = document.createElement("span");
+      chip.className = "tag chip" + (selectedSet.has(opt) ? " active" : "");
+      chip.textContent = opt;
+      chip.onclick = () => {
+        if (selectedSet.has(opt)) selectedSet.delete(opt); else selectedSet.add(opt);
+        chip.classList.toggle("active");
+      };
+      group.appendChild(chip);
+    });
+    container.appendChild(group);
+  });
+}
+
+function populateSubjectSelect(select, mySubjects) {
+  select.innerHTML = Object.entries(SUBJECTS_BY_TRIMESTER).map(([trimester, subs]) =>
+    `<optgroup label="${trimester}">` +
+    subs.map(s => `<option value="${s}" ${mySubjects.includes(s) ? "selected" : ""}>${s}</option>`).join("") +
+    `</optgroup>`
+  ).join("");
+}
+
+function renderRosterSearch() {
+  const q = el("searchName").value.trim().toLowerCase();
+  const results = el("rosterResults");
+  results.innerHTML = "";
+  if (!q) return;
+  const matches = allStudents.filter(s => s.name.toLowerCase().includes(q)).slice(0, 12);
+  if (matches.length === 0) {
+    results.innerHTML = `<p class="empty">No match — add yourself below.</p>`;
+    return;
+  }
+  matches.forEach(s => {
+    const row = document.createElement("div");
+    row.className = "roster-item";
+    row.innerHTML = `<div><div class="name">${s.name}</div><div class="meta">${s.major || ""}${s.minor?.length ? " · Minor: " + s.minor.join(", ") : ""}</div></div><span>Claim →</span>`;
+    row.onclick = () => claimProfile(s.id);
+    results.appendChild(row);
+  });
+}
+
+function claimProfile(id) {
+  myId = id;
+  localStorage.setItem("tm_myId", id);
+  showMain();
+}
+
+async function createProfile() {
+  const name = el("newName").value.trim();
+  if (!name) { alert("Enter your name"); return; }
+  const id = slug(name);
+  const data = {
+    name,
+    major: el("newMajor").value || "",
+    minor: Array.from(selectedMinors),
+    subjects: Array.from(selectedSubjects),
+    skills: [],
+    custom: true,
+    writeCode: WRITE_CODE,
+    updatedAt: serverTimestamp()
+  };
+  await setDoc(doc(db, "students", id), data, { merge: true });
+  allStudents.push({ id, ...data });
+  claimProfile(id);
+}
+
+function me() {
+  return allStudents.find(s => s.id === myId);
+}
+
+function showMain() {
+  const person = me();
+  if (!person) { showOnboarding(); return; }
+  el("onboarding").classList.add("hidden");
+  el("main").classList.remove("hidden");
+  el("myName").textContent = person.name;
+  el("myMeta").textContent = `${person.major || "—"}${person.minor?.length ? " · Minor: " + person.minor.join(", ") : ""}`;
+  selectedSkills = new Set(person.skills || []);
+  renderChipGroup(el("skillChips"), SKILLS, selectedSkills);
+
+  const domainSelect = el("domainSelect");
+  domainSelect.innerHTML = `<option value="">Select background</option>` +
+    DOMAINS.map(d => `<option value="${d}" ${person.domain === d ? "selected" : ""}>${d}</option>`).join("");
+
+  const experienceSelect = el("experienceSelect");
+  experienceSelect.innerHTML = `<option value="">Select experience</option>` +
+    EXPERIENCE_LEVELS.map(x => `<option value="${x}" ${person.experience === x ? "selected" : ""}>${x}</option>`).join("");
+
+  selectedAvailability = new Set(person.availability || []);
+  renderChipGroup(el("availabilityChips"), AVAILABILITY, selectedAvailability);
+
+  selectedStyles = new Set(person.workingStyle || []);
+  renderChipGroup(el("styleChips"), WORKING_STYLES, selectedStyles);
+
+  selectedTeamRoles = new Set(person.teamRole || []);
+  renderChipGroup(el("teamRoleChips"), TEAM_ROLES, selectedTeamRoles);
+
+  const goalSelect = el("goalSelect");
+  goalSelect.innerHTML = `<option value="">No preference set</option>` +
+    GOALS.map(g => `<option value="${g}" ${person.goal === g ? "selected" : ""}>${g}</option>`).join("");
+
+  const groupSizeSelect = el("groupSizeSelect");
+  groupSizeSelect.innerHTML = `<option value="">No preference set</option>` +
+    GROUP_SIZES.map(g => `<option value="${g}" ${person.groupSize === g ? "selected" : ""}>${g}</option>`).join("");
+
+  const subjectSelect = el("subjectSelect");
+  const mySubjects = person.subjects?.length ? person.subjects : SUBJECTS;
+  populateSubjectSelect(subjectSelect, mySubjects);
+  subjectSelect.value = mySubjects[0] || SUBJECTS[0];
+  el("tabbar").classList.remove("hidden");
+  renderGroups();
+  renderCandidates();
+}
+
+function showOnboarding() {
+  el("main").classList.add("hidden");
+  el("tabbar").classList.add("hidden");
+  el("onboarding").classList.remove("hidden");
+  renderChipGroup(el("newMinorChips"), MINORS, selectedMinors);
+  renderSubjectChipsByTrimester(el("newSubjectChips"), selectedSubjects);
+}
+
+function switchView(viewName) {
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${viewName}`));
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.view === viewName));
+}
+
+function groupedIdsForSubject(subject) {
+  const ids = new Set();
+  allGroups.filter(g => g.subject === subject).forEach(g => (g.members || []).forEach(id => ids.add(id)));
+  return ids;
+}
+
+function renderGroups() {
+  const subject = el("subjectSelect").value;
+  const groupsForSubject = allGroups.filter(g => g.subject === subject);
+  el("groupsSummary").textContent = groupsForSubject.length
+    ? `${groupsForSubject.length} group${groupsForSubject.length > 1 ? "s" : ""} formed so far.`
+    : "No groups formed yet for this subject — be the first!";
+
+  const list = el("groupsList");
+  list.innerHTML = "";
+  const myGroup = groupsForSubject.find(g => (g.members || []).includes(myId));
+
+  if (groupsForSubject.length === 0) {
+    list.innerHTML = `<p class="empty">No groups yet for this subject.</p>`;
+  }
+
+  groupsForSubject.forEach(g => {
+    const members = g.members || [];
+    const isFull = members.length >= MAX_GROUP_SIZE;
+    const isMine = members.includes(myId);
+    const card = document.createElement("div");
+    card.className = "group-card";
+    card.innerHTML = `
+      <div class="group-top">
+        <span class="group-title">${g.name || "Group"}</span>
+        ${isFull ? `<span class="full-badge">Full</span>` : `<span class="group-count">${members.length}/${MAX_GROUP_SIZE}</span>`}
+      </div>
+      <div class="members">${(g.memberNames || []).join(", ") || "—"}</div>
+    `;
+    if (isMine) {
+      const note = document.createElement("div");
+      note.className = "meta";
+      note.style.marginTop = "8px";
+      note.textContent = "✓ You're in this group";
+      card.appendChild(note);
+    } else if (!isFull && !myGroup) {
+      const btn = document.createElement("button");
+      btn.className = "btn secondary";
+      btn.style.marginTop = "10px";
+      btn.textContent = "Join this group";
+      btn.onclick = () => joinGroup(g.id);
+      card.appendChild(btn);
+    }
+    list.appendChild(card);
+  });
+
+  el("createGroupBtn").classList.toggle("hidden", !!myGroup);
+}
+
+async function createGroup() {
+  const person = me();
+  const subject = el("subjectSelect").value;
+  const data = {
+    subject,
+    name: `${person.name.split(" ")[0]}'s Group`,
+    members: [myId],
+    memberNames: [person.name],
+    writeCode: WRITE_CODE,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+  const ref = await addDoc(collection(db, "groups"), data);
+  allGroups.push({ id: ref.id, ...data });
+  renderGroups();
+  renderCandidates();
+}
+
+async function joinGroup(groupId) {
+  const person = me();
+  const group = allGroups.find(g => g.id === groupId);
+  if (!group) return;
+  if ((group.members || []).length >= MAX_GROUP_SIZE) { alert("This group is already full."); return; }
+  await updateDoc(doc(db, "groups", groupId), {
+    members: arrayUnion(myId),
+    memberNames: arrayUnion(person.name),
+    writeCode: WRITE_CODE,
+    updatedAt: serverTimestamp()
+  });
+  group.members = [...(group.members || []), myId];
+  group.memberNames = [...(group.memberNames || []), person.name];
+  renderGroups();
+  renderCandidates();
+}
+
+function renderCandidates() {
+  const person = me();
+  const subject = el("subjectSelect").value;
+  const list = el("candidateList");
+  const mySkills = selectedSkills;
+  const myAvailability = selectedAvailability;
+  const myStyles = selectedStyles;
+  const myGoal = el("goalSelect").value;
+  const myGroupSize = el("groupSizeSelect").value;
+  const myDomain = el("domainSelect").value;
+  const grouped = groupedIdsForSubject(subject);
+  const myGroup = allGroups.find(g => g.subject === subject && (g.members || []).includes(myId));
+  const myGroupFull = myGroup && (myGroup.members || []).length >= MAX_GROUP_SIZE;
+
+  const candidates = allStudents
+    .filter(s => s.id !== myId && (s.subjects || []).includes(subject) && !grouped.has(s.id))
+    .map(s => {
+      const theirSkills = s.skills || [];
+      const theirAvailability = s.availability || [];
+      const theirStyles = s.workingStyle || [];
+      const complementary = theirSkills.filter(sk => !mySkills.has(sk));
+      const sharedAvailability = theirAvailability.filter(a => myAvailability.has(a));
+      const sharedStyles = theirStyles.filter(st => myStyles.has(st));
+      const majorBonus = s.major && person.major && s.major !== person.major ? 0.5 : 0;
+      const domainBonus = s.domain && myDomain && s.domain !== myDomain ? 0.5 : 0;
+      const goalMatch = myGoal && s.goal && s.goal === myGoal;
+      const groupSizeMatch = myGroupSize && s.groupSize &&
+        (myGroupSize === "No preference" || s.groupSize === "No preference" || s.groupSize === myGroupSize);
+
+      const score = complementary.length
+        + majorBonus + domainBonus
+        + sharedAvailability.length * 0.4
+        + sharedStyles.length * 0.3
+        + (goalMatch ? 1 : 0)
+        + (groupSizeMatch ? 0.5 : 0);
+
+      return { s, score, complementary, theirSkills, sharedAvailability, sharedStyles, goalMatch, groupSizeMatch };
+    })
+    .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name));
+
+  list.innerHTML = "";
+  if (candidates.length === 0) {
+    list.innerHTML = `<p class="empty">Everyone enrolled is already in a group, or no one else is enrolled yet.</p>`;
+    return;
+  }
+  candidates.forEach(({ s, score, theirSkills, sharedAvailability, sharedStyles, goalMatch, groupSizeMatch }) => {
+    const card = document.createElement("div");
+    card.className = "candidate";
+    const skillTags = theirSkills.length
+      ? theirSkills.map(sk => `<span class="tag${!mySkills.has(sk) ? " mine" : ""}">${sk}</span>`).join("")
+      : `<span class="empty" style="padding:0;">No skills listed yet</span>`;
+
+    const extras = [];
+    if (s.domain) extras.push(`🎓 ${s.domain}`);
+    if (s.experience) extras.push(`🧑‍💼 ${s.experience}`);
+    if (s.teamRole?.length) extras.push(`🌟 ${s.teamRole.join(", ")}`);
+    if (sharedAvailability.length) extras.push(`🕒 ${sharedAvailability.join(", ")}`);
+    if (sharedStyles.length) extras.push(`🤝 ${sharedStyles.join(", ")}`);
+    if (goalMatch) extras.push(`🎯 Same goal: ${s.goal}`);
+    if (groupSizeMatch && s.groupSize) extras.push(`👥 ${s.groupSize}`);
+    const extrasLine = extras.length
+      ? `<div class="meta" style="margin-top:8px;">${extras.join(" · ")}</div>` : "";
+
+    card.innerHTML = `
+      <div class="candidate-top">
+        <div>
+          <div class="name">${s.name}</div>
+          <div class="meta">${s.major || "—"}${s.minor?.length ? " · " + s.minor.join(", ") : ""}</div>
+        </div>
+        <span class="score">+${score.toFixed(1)} fit</span>
+      </div>
+      <div>${skillTags}</div>
+      ${extrasLine}
+    `;
+
+    if (myGroup && !myGroupFull) {
+      const addBtn = document.createElement("button");
+      addBtn.className = "btn secondary";
+      addBtn.style.cssText = "margin-top:10px;width:auto;padding:8px 14px;font-size:13px;";
+      addBtn.textContent = "+ Add to my group";
+      addBtn.onclick = () => addToGroup(myGroup.id, s.id, s.name);
+      card.appendChild(addBtn);
+    }
+
+    list.appendChild(card);
+  });
+}
+
+async function addToGroup(groupId, studentId, studentName) {
+  const group = allGroups.find(g => g.id === groupId);
+  if (!group) return;
+  if ((group.members || []).length >= MAX_GROUP_SIZE) { alert("Your group is already full."); return; }
+  await updateDoc(doc(db, "groups", groupId), {
+    members: arrayUnion(studentId),
+    memberNames: arrayUnion(studentName),
+    writeCode: WRITE_CODE,
+    updatedAt: serverTimestamp()
+  });
+  group.members = [...(group.members || []), studentId];
+  group.memberNames = [...(group.memberNames || []), studentName];
+  renderGroups();
+  renderCandidates();
+}
+
+async function saveSkills() {
+  const id = myId;
+  await updateDoc(doc(db, "students", id), {
+    skills: Array.from(selectedSkills),
+    domain: el("domainSelect").value,
+    experience: el("experienceSelect").value,
+    availability: Array.from(selectedAvailability),
+    workingStyle: Array.from(selectedStyles),
+    teamRole: Array.from(selectedTeamRoles),
+    goal: el("goalSelect").value,
+    groupSize: el("groupSizeSelect").value,
+    writeCode: WRITE_CODE,
+    updatedAt: serverTimestamp()
+  });
+  const person = me();
+  person.skills = Array.from(selectedSkills);
+  person.domain = el("domainSelect").value;
+  person.experience = el("experienceSelect").value;
+  person.availability = Array.from(selectedAvailability);
+  person.workingStyle = Array.from(selectedStyles);
+  person.teamRole = Array.from(selectedTeamRoles);
+  person.goal = el("goalSelect").value;
+  person.groupSize = el("groupSizeSelect").value;
+  renderCandidates();
+  const btn = el("saveSkillsBtn");
+  btn.textContent = "Saved ✓";
+  setTimeout(() => (btn.textContent = "Save my profile"), 1400);
+}
+
+function addCustomSkill() {
+  const input = el("customSkillInput");
+  const value = input.value.trim();
+  if (!value) return;
+  selectedSkills.add(value);
+  renderChipGroup(el("skillChips"), SKILLS, selectedSkills);
+  input.value = "";
+}
+
+el("searchName").addEventListener("input", renderRosterSearch);
+el("createProfileBtn").addEventListener("click", createProfile);
+el("saveSkillsBtn").addEventListener("click", saveSkills);
+el("addSkillBtn").addEventListener("click", addCustomSkill);
+el("customSkillInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } });
+el("createGroupBtn").addEventListener("click", createGroup);
+el("subjectSelect").addEventListener("change", () => { renderGroups(); renderCandidates(); });
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => switchView(tab.dataset.view));
+});
+el("switchBtn").addEventListener("click", () => {
+  localStorage.removeItem("tm_myId");
+  myId = "";
+  showOnboarding();
+});
+
+(async function init() {
+  await Promise.all([loadRoster(), loadGroups()]);
+  if (myId && me()) showMain(); else showOnboarding();
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>

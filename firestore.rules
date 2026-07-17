@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /students/{studentId} {
+      // Anyone can read the roster/skills (needed for open matching).
+      allow read: if true;
+
+      // Writes require the shared write code — a spam/vandalism deterrent,
+      // NOT real security (the code is visible in the public app source).
+      // Change this string + the WRITE_CODE constant in firebase-config.js
+      // and scripts/seed-roster.mjs together if you want to rotate it.
+      allow create, update: if request.resource.data.writeCode == "TRIM4-TEAMS-26";
+
+      // Never allow deletes from the client.
+      allow delete: if false;
+    }
+
+    match /groups/{groupId} {
+      // Anyone can see which groups exist and who's in them.
+      allow read: if true;
+
+      // Same write-code deterrent as /students.
+      allow create, update: if request.resource.data.writeCode == "TRIM4-TEAMS-26";
+
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "TeamMatch – Project Team Finder",
+  "short_name": "TeamMatch",
+  "description": "Find complementary teammates for group projects by subject and self-reported skills.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f9f7",
+  "theme_color": "#2fa88f",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "education"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

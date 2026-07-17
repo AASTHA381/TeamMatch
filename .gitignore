@@ -1,0 +1,6 @@
+# Never commit raw classmate data (names, majors, subjects) — it lives in
+# Firestore only, not in the deployed static app.
+roster-data/
+*.xlsx
+*.xls
+*.csv
