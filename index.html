@@ -129,8 +129,8 @@
     <div id="signin">
       <div class="card">
         <h2>Sign in to continue</h2>
-        <p class="sub">Sign in with your NMIMS Google account (@nmims.in) so only you can edit your own profile — no one else can overwrite it.</p>
-        <button class="btn" id="signInBtn">Sign in with Google</button>
+        <p class="sub">Sign in with your NMIMS Microsoft account (@nmims.in) so only you can edit your own profile — no one else can overwrite it.</p>
+        <button class="btn" id="signInBtn">Sign in with Microsoft</button>
         <p class="empty" id="signInError" style="display:none;color:var(--accent);"></p>
       </div>
     </div>
@@ -245,15 +245,17 @@ import {
   getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, addDoc, arrayUnion, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+  getAuth, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { firebaseConfig, ALLOWED_EMAIL_DOMAIN } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ hd: ALLOWED_EMAIL_DOMAIN });
+// NMIMS accounts are Microsoft 365 / Outlook, so we authenticate via the
+// Microsoft (Azure AD) OAuth provider. domain_hint pre-fills the org login.
+const microsoftProvider = new OAuthProvider("microsoft.com");
+microsoftProvider.setCustomParameters({ domain_hint: ALLOWED_EMAIL_DOMAIN });
 
 let currentUserEmail = null;
 
@@ -781,14 +783,18 @@ function showSignIn(errorMessage) {
 
 async function handleSignIn() {
   try {
-    await signInWithPopup(auth, googleProvider);
+    await signInWithPopup(auth, microsoftProvider);
   } catch (err) {
     console.warn("Sign-in failed:", err.message);
   }
 }
 
 onAuthStateChanged(auth, async (user) => {
-  const email = user?.email || null;
+  // Microsoft work/school accounts sometimes expose the address on
+  // providerData rather than user.email, so fall back to that.
+  const email = user
+    ? (user.email || user.providerData?.find(p => p.email)?.email || null)
+    : null;
   if (!email || !email.toLowerCase().endsWith("@" + ALLOWED_EMAIL_DOMAIN)) {
     const wasWrongDomain = !!email;
     currentUserEmail = null;

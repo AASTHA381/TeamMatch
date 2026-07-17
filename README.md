@@ -24,20 +24,20 @@ TeamMatch solves this by letting every student self-report their profile once, t
 - **Subject-based matching** — pick any subject across Trimester IV, V or VI; ranked list of classmates by complementary skills, shared availability, matching goals/working style, and academic diversity
 - **Groups** — see groups already formed for a subject (with member list and capacity), join one yourself, start a new one, or add classmates directly to your group
 - **Live sync** — real-time Firestore listeners mean profile updates and group changes from classmates show up instantly, no refresh needed
-- **Google sign-in required** — only signed-in `@nmims.in` accounts can claim/edit a profile, so no one else can overwrite your data
+- **Microsoft sign-in required** — only signed-in `@nmims.in` accounts can claim/edit a profile, so no one else can overwrite your data
 - **Installable** — add to your phone's home screen for a native app feel
 
 ## Privacy & data handling
 
 - Only **name, major, minor and enrolled subjects** are pre-seeded from the batch roster — no SAP IDs or email addresses are stored anywhere in the app or database
 - All other fields (skills, availability, working style, goal, group size, team role) are entirely **self-reported** by each student
-- The Firestore database is read-open (so matching/browsing works for everyone) but **writes require signing in with a Google account on the `@nmims.in` domain**, and each profile can only be edited by the account that first claimed it — enforced server-side by `firestore.rules`, not just client-side
+- The Firestore database is read-open (so matching/browsing works for everyone) but **writes require signing in with a Microsoft (Outlook) account on the `@nmims.in` domain**, and each profile can only be edited by the account that first claimed it — enforced server-side by `firestore.rules`, not just client-side
 - Raw roster spreadsheets are never committed to this repository (`roster-data/` is gitignored) — only the minimized dataset is loaded into Firestore directly via the seed scripts
 
 ## Tech stack
 
 - Plain HTML/CSS/JavaScript (no build step), served as a static PWA
-- Firebase Authentication (Google sign-in, domain-restricted) + Firebase Firestore for the shared, real-time database
+- Firebase Authentication (Microsoft/Azure AD sign-in, domain-restricted) + Firebase Firestore for the shared, real-time database
 - Deployed via GitHub Pages
 
 ## Run locally
