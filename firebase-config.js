@@ -11,7 +11,11 @@ export const firebaseConfig = {
   measurementId: "G-8FWB702LHF"
 };
 
-// Only students signed in with a Google account in this email domain may
-// claim/edit a profile or create/join groups. Enforced server-side by
-// Firestore Security Rules (see firestore.rules) — not just client-side.
-export const ALLOWED_EMAIL_DOMAIN = "nmims.in";
+// Students sign in with a one-time link sent to any email they own (personal
+// Gmail, Outlook, NMIMS, etc.). Signing in just proves they own that inbox;
+// each profile is then locked to whoever claimed it first. Access control is
+// enforced server-side by Firestore Security Rules (see firestore.rules).
+//
+// Set this to an email domain (e.g. "nmims.in") to restrict sign-in to that
+// domain, or leave it empty ("") to allow any email address.
+export const ALLOWED_EMAIL_DOMAIN = "";

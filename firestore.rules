@@ -2,10 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isNmimsUser() {
+    function isSignedIn() {
       return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email.matches('.*@nmims[.]in$');
+        && request.auth.token.email != null;
     }
 
     match /students/{studentId} {
@@ -13,16 +12,16 @@ service cloud.firestore {
       // login required just to browse.
       allow read: if true;
 
-      // Creating/claiming a profile: must be signed in with an @nmims.in
-      // account, and the doc must record you as its owner.
-      allow create: if isNmimsUser()
+      // Creating/claiming a profile: must be signed in (any verified email),
+      // and the doc must record you as its owner.
+      allow create: if isSignedIn()
         && request.resource.data.ownerEmail == request.auth.token.email;
 
       // Updating: only the person who owns this profile can edit it (or,
       // for profiles seeded from the roster that no one has claimed yet,
-      // the first signed-in nmims.in user to save becomes the owner).
+      // the first signed-in user to save becomes the owner).
       // This is what stops someone else from claiming/overwriting your name.
-      allow update: if isNmimsUser()
+      allow update: if isSignedIn()
         && (!('ownerEmail' in resource.data) || resource.data.ownerEmail == request.auth.token.email)
         && request.resource.data.ownerEmail == request.auth.token.email;
 
@@ -34,9 +33,9 @@ service cloud.firestore {
       // Anyone can see which groups exist and who's in them.
       allow read: if true;
 
-      // Any signed-in nmims.in student can create a group or join/add to
-      // one — this is intentionally collaborative (not owner-restricted).
-      allow create, update: if isNmimsUser();
+      // Any signed-in student can create a group or join/add to one —
+      // this is intentionally collaborative (not owner-restricted).
+      allow create, update: if isSignedIn();
 
       allow delete: if false;
     }

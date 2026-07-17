@@ -129,8 +129,8 @@
     <div id="signin">
       <div class="card">
         <h2>Sign in to continue</h2>
-        <p class="sub">Enter your NMIMS email (@nmims.in). We'll email you a one-time sign-in link — no password needed. This makes sure only you can edit your own profile.</p>
-        <input type="email" id="signInEmail" placeholder="yourname@nmims.in" autocomplete="email" />
+        <p class="sub">Enter your email (any personal email works). We'll email you a one-time sign-in link — no password needed. This makes sure only you can edit your own profile.</p>
+        <input type="email" id="signInEmail" placeholder="you@example.com" autocomplete="email" />
         <button class="btn" id="signInBtn">Email me a sign-in link</button>
         <p class="empty" id="signInError" style="display:none;color:var(--accent);"></p>
         <p class="empty" id="signInInfo" style="display:none;color:var(--primary);"></p>
@@ -796,8 +796,12 @@ async function handleSignIn() {
   infoEl.style.display = "none";
 
   const email = el("signInEmail").value.trim().toLowerCase();
-  if (!email || !email.endsWith("@" + ALLOWED_EMAIL_DOMAIN)) {
-    errEl.textContent = `Please enter a valid @${ALLOWED_EMAIL_DOMAIN} email.`;
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const domainOk = !ALLOWED_EMAIL_DOMAIN || email.endsWith("@" + ALLOWED_EMAIL_DOMAIN);
+  if (!validEmail || !domainOk) {
+    errEl.textContent = ALLOWED_EMAIL_DOMAIN
+      ? `Please enter a valid @${ALLOWED_EMAIL_DOMAIN} email.`
+      : "Please enter a valid email address.";
     errEl.style.display = "block";
     return;
   }
@@ -837,7 +841,8 @@ async function completeEmailLinkSignInIfPresent() {
 
 onAuthStateChanged(auth, async (user) => {
   const email = user?.email || null;
-  if (!email || !email.toLowerCase().endsWith("@" + ALLOWED_EMAIL_DOMAIN)) {
+  const domainOk = !ALLOWED_EMAIL_DOMAIN || (email && email.toLowerCase().endsWith("@" + ALLOWED_EMAIL_DOMAIN));
+  if (!email || !domainOk) {
     const wasWrongDomain = !!email;
     currentUserEmail = null;
     if (wasWrongDomain) await signOut(auth);
