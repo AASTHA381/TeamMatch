@@ -231,7 +231,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
-  getFirestore, collection, getDocs, doc, setDoc, updateDoc, addDoc, arrayUnion, serverTimestamp
+  getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, addDoc, arrayUnion, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { firebaseConfig, WRITE_CODE } from "./firebase-config.js";
 
@@ -289,19 +289,40 @@ let selectedAvailability = new Set();
 let selectedStyles = new Set();
 let selectedTeamRoles = new Set();
 
-async function loadRoster() {
-  const snap = await getDocs(collection(db, "students"));
-  allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+function isMainVisible() {
+  return !!myId && !el("main").classList.contains("hidden");
 }
 
-async function loadGroups() {
-  try {
-    const snap = await getDocs(collection(db, "groups"));
-    allGroups = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (err) {
-    console.warn("Could not load groups (rules may not be published yet):", err.message);
-    allGroups = [];
-  }
+// Real-time listener: resolves once the first snapshot arrives, then keeps
+// allStudents in sync live so classmates' profile/skill changes show up
+// without needing a manual page refresh.
+function loadRoster() {
+  return new Promise((resolve) => {
+    onSnapshot(collection(db, "students"), (snap) => {
+      allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      resolve();
+      if (isMainVisible()) renderCandidates();
+    }, (err) => {
+      console.warn("Students listener error:", err.message);
+      resolve();
+    });
+  });
+}
+
+// Same idea for groups — so a group filling up / a new group forming shows
+// up live for everyone looking at that subject.
+function loadGroups() {
+  return new Promise((resolve) => {
+    onSnapshot(collection(db, "groups"), (snap) => {
+      allGroups = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      resolve();
+      if (isMainVisible()) { renderGroups(); renderCandidates(); }
+    }, (err) => {
+      console.warn("Groups listener error (rules may not be published yet):", err.message);
+      allGroups = allGroups || [];
+      resolve();
+    });
+  });
 }
 
 function renderChipGroup(container, options, selectedSet) {
