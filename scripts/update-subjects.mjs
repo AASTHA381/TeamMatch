@@ -3,6 +3,11 @@
 // availability, workingStyle, goal, groupSize). Only updates `subjects` +
 // `subjectsByTrimester`.
 //
+// NOTE: This script already ran successfully once. It no longer works as-is
+// now that Firestore rules require a real authenticated @nmims.in Google
+// sign-in for writes (see firestore.rules) — this unauthenticated REST call
+// can't satisfy that. Kept for historical reference only.
+//
 // Usage: node scripts/update-subjects.mjs
 
 import { readFileSync } from "node:fs";

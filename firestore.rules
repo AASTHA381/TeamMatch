@@ -1,15 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isNmimsUser() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.matches('.*@nmims[.]in$');
+    }
+
     match /students/{studentId} {
-      // Anyone can read the roster/skills (needed for open matching).
+      // Anyone can read the roster/skills (needed for open matching) — no
+      // login required just to browse.
       allow read: if true;
 
-      // Writes require the shared write code — a spam/vandalism deterrent,
-      // NOT real security (the code is visible in the public app source).
-      // Change this string + the WRITE_CODE constant in firebase-config.js
-      // and scripts/seed-roster.mjs together if you want to rotate it.
-      allow create, update: if request.resource.data.writeCode == "TRIM4-TEAMS-26";
+      // Creating/claiming a profile: must be signed in with an @nmims.in
+      // account, and the doc must record you as its owner.
+      allow create: if isNmimsUser()
+        && request.resource.data.ownerEmail == request.auth.token.email;
+
+      // Updating: only the person who owns this profile can edit it (or,
+      // for profiles seeded from the roster that no one has claimed yet,
+      // the first signed-in nmims.in user to save becomes the owner).
+      // This is what stops someone else from claiming/overwriting your name.
+      allow update: if isNmimsUser()
+        && (!('ownerEmail' in resource.data) || resource.data.ownerEmail == request.auth.token.email)
+        && request.resource.data.ownerEmail == request.auth.token.email;
 
       // Never allow deletes from the client.
       allow delete: if false;
@@ -19,8 +34,9 @@ service cloud.firestore {
       // Anyone can see which groups exist and who's in them.
       allow read: if true;
 
-      // Same write-code deterrent as /students.
-      allow create, update: if request.resource.data.writeCode == "TRIM4-TEAMS-26";
+      // Any signed-in nmims.in student can create a group or join/add to
+      // one — this is intentionally collaborative (not owner-restricted).
+      allow create, update: if isNmimsUser();
 
       allow delete: if false;
     }

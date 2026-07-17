@@ -11,8 +11,7 @@ export const firebaseConfig = {
   measurementId: "G-8FWB702LHF"
 };
 
-// Shared "write code" — a low-friction speed bump, NOT real security (it's
-// visible in this public source file). It only deters casual bots/spam from
-// writing to the open Firestore collection. Change this value + the matching
-// value in your Firestore Security Rules together if you want a new code.
-export const WRITE_CODE = "TRIM4-TEAMS-26";
+// Only students signed in with a Google account in this email domain may
+// claim/edit a profile or create/join groups. Enforced server-side by
+// Firestore Security Rules (see firestore.rules) — not just client-side.
+export const ALLOWED_EMAIL_DOMAIN = "nmims.in";

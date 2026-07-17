@@ -125,8 +125,18 @@
 
   <div class="content">
 
+    <!-- SIGN IN -->
+    <div id="signin">
+      <div class="card">
+        <h2>Sign in to continue</h2>
+        <p class="sub">Sign in with your NMIMS Google account (@nmims.in) so only you can edit your own profile — no one else can overwrite it.</p>
+        <button class="btn" id="signInBtn">Sign in with Google</button>
+        <p class="empty" id="signInError" style="display:none;color:var(--accent);"></p>
+      </div>
+    </div>
+
     <!-- ONBOARDING -->
-    <div id="onboarding">
+    <div id="onboarding" class="hidden">
       <div class="card">
         <h2>Find yourself</h2>
         <p class="sub">Search your name from the batch roster to claim your profile.</p>
@@ -193,6 +203,7 @@
 
         <div class="switch-link">
           <button class="btn link" id="switchBtn">Not you? Switch profile</button>
+          <button class="btn link" id="signOutBtn">Sign out (<span id="signedInAs"></span>)</button>
         </div>
       </div>
 
@@ -233,10 +244,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/fireba
 import {
   getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, addDoc, arrayUnion, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
-import { firebaseConfig, WRITE_CODE } from "./firebase-config.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { firebaseConfig, ALLOWED_EMAIL_DOMAIN } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ hd: ALLOWED_EMAIL_DOMAIN });
+
+let currentUserEmail = null;
 
 const MAX_GROUP_SIZE = 5;
 
@@ -400,7 +419,22 @@ function renderRosterSearch() {
   });
 }
 
-function claimProfile(id) {
+async function claimProfile(id) {
+  const target = allStudents.find(s => s.id === id);
+  if (target?.ownerEmail && target.ownerEmail !== currentUserEmail) {
+    alert(`${target.name} has already been claimed by someone else. If this is a mistake, add yourself as a new entry instead.`);
+    return;
+  }
+  try {
+    await setDoc(doc(db, "students", id), {
+      ownerEmail: currentUserEmail,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    alert("Couldn't claim this profile — it may already belong to someone else.");
+    return;
+  }
+  if (target) target.ownerEmail = currentUserEmail;
   myId = id;
   localStorage.setItem("tm_myId", id);
   showMain();
@@ -417,7 +451,7 @@ async function createProfile() {
     subjects: Array.from(selectedSubjects),
     skills: [],
     custom: true,
-    writeCode: WRITE_CODE,
+    ownerEmail: currentUserEmail,
     updatedAt: serverTimestamp()
   };
   await setDoc(doc(db, "students", id), data, { merge: true });
@@ -548,7 +582,6 @@ async function createGroup() {
     name: `${person.name.split(" ")[0]}'s Group`,
     members: [myId],
     memberNames: [person.name],
-    writeCode: WRITE_CODE,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
@@ -566,7 +599,6 @@ async function joinGroup(groupId) {
   await updateDoc(doc(db, "groups", groupId), {
     members: arrayUnion(myId),
     memberNames: arrayUnion(person.name),
-    writeCode: WRITE_CODE,
     updatedAt: serverTimestamp()
   });
   group.members = [...(group.members || []), myId];
@@ -670,7 +702,6 @@ async function addToGroup(groupId, studentId, studentName) {
   await updateDoc(doc(db, "groups", groupId), {
     members: arrayUnion(studentId),
     memberNames: arrayUnion(studentName),
-    writeCode: WRITE_CODE,
     updatedAt: serverTimestamp()
   });
   group.members = [...(group.members || []), studentId];
@@ -690,7 +721,6 @@ async function saveSkills() {
     teamRole: Array.from(selectedTeamRoles),
     goal: el("goalSelect").value,
     groupSize: el("groupSizeSelect").value,
-    writeCode: WRITE_CODE,
     updatedAt: serverTimestamp()
   });
   const person = me();
@@ -732,14 +762,58 @@ el("switchBtn").addEventListener("click", () => {
   myId = "";
   showOnboarding();
 });
+el("signInBtn").addEventListener("click", handleSignIn);
+el("signOutBtn").addEventListener("click", () => signOut(auth));
 
-(async function init() {
+function showSignIn(errorMessage) {
+  el("signin").classList.remove("hidden");
+  el("onboarding").classList.add("hidden");
+  el("main").classList.add("hidden");
+  el("tabbar").classList.add("hidden");
+  const errEl = el("signInError");
+  if (errorMessage) {
+    errEl.textContent = errorMessage;
+    errEl.style.display = "block";
+  } else {
+    errEl.style.display = "none";
+  }
+}
+
+async function handleSignIn() {
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (err) {
+    console.warn("Sign-in failed:", err.message);
+  }
+}
+
+onAuthStateChanged(auth, async (user) => {
+  const email = user?.email || null;
+  if (!email || !email.toLowerCase().endsWith("@" + ALLOWED_EMAIL_DOMAIN)) {
+    const wasWrongDomain = !!email;
+    currentUserEmail = null;
+    if (wasWrongDomain) await signOut(auth);
+    showSignIn(wasWrongDomain ? `Please sign in with an @${ALLOWED_EMAIL_DOMAIN} account.` : null);
+    return;
+  }
+
+  currentUserEmail = email;
+  el("signedInAs").textContent = currentUserEmail;
+  el("signin").classList.add("hidden");
+
   await Promise.all([loadRoster(), loadGroups()]);
-  if (myId && me()) showMain(); else showOnboarding();
+  const person = me();
+  if (myId && person && person.ownerEmail === currentUserEmail) {
+    showMain();
+  } else {
+    myId = "";
+    localStorage.removeItem("tm_myId");
+    showOnboarding();
+  }
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
-})();
+});
 </script>
 </body>
 </html>

@@ -1,8 +1,14 @@
 // One-time script to seed the Firestore `students` collection from the
 // privacy-minimized roster JSON (name, major, minor, subjects only — no SAP
 // ID or emails). Uses the Firestore REST API directly (no service account
-// key needed) because Firestore Security Rules already allow writes that
-// include the correct writeCode.
+// key needed) because Firestore Security Rules originally allowed writes
+// gated by a shared writeCode.
+//
+// NOTE: This script already ran successfully once to seed the roster. It no
+// longer works as-is now that Firestore rules require a real authenticated
+// @nmims.in Google sign-in for writes (see firestore.rules) — this
+// unauthenticated REST call can't satisfy that. Kept for historical
+// reference only; re-seeding would need the Firebase Admin SDK instead.
 //
 // Usage:
 //   node scripts/seed-roster.mjs
