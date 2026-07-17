@@ -49,11 +49,11 @@
   .card h2{font-size:15px;font-weight:700;margin-bottom:4px;}
   .card .sub{font-size:12.5px;color:var(--ink-2);margin-bottom:12px;}
   .label{font-size:11px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
-  input[type=text],input[type=email],select{
+  input[type=text],input[type=email],input[type=password],select{
     width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
     background:#fbfefd;font-size:14.5px;color:var(--ink);outline:none;margin-bottom:10px;
   }
-  input[type=text]:focus,input[type=email]:focus,select:focus{border-color:var(--primary);}
+  input[type=text]:focus,input[type=email]:focus,input[type=password]:focus,select:focus{border-color:var(--primary);}
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:6px;
     background:var(--primary);color:#fff;border:none;border-radius:12px;
@@ -62,6 +62,8 @@
   .btn:active{transform:scale(.98);}
   .btn.secondary{background:var(--primary-soft);color:var(--primary);}
   .btn.link{background:none;color:var(--ink-2);font-weight:600;text-decoration:underline;padding:8px;width:auto;}
+  .signin-actions{display:flex;gap:10px;margin-top:2px;}
+  .signin-actions .btn{flex:1;}
   .tag{
     display:inline-flex;align-items:center;padding:5px 11px;border-radius:999px;
     font-size:12px;font-weight:600;background:var(--primary-soft);color:var(--primary);
@@ -129,10 +131,13 @@
     <div id="signin">
       <div class="card">
         <h2>Sign in to continue</h2>
-        <p class="sub">Use any personal email and a password. New here? Just pick a password (6+ characters) and we'll create your account automatically. This makes sure only you can edit your own profile.</p>
+        <p class="sub">Use any personal email and a password. First time here? Enter your email and a password (6+ characters), then tap <b>Create account</b>. Coming back? Tap <b>Sign in</b>. This makes sure only you can edit your own profile.</p>
         <input type="email" id="signInEmail" placeholder="you@example.com" autocomplete="email" />
         <input type="password" id="signInPassword" placeholder="Password (6+ characters)" autocomplete="current-password" />
-        <button class="btn" id="signInBtn">Sign in / Create account</button>
+        <div class="signin-actions">
+          <button class="btn" id="signInBtn">Sign in</button>
+          <button class="btn secondary" id="createAccountBtn">Create account</button>
+        </div>
         <p class="empty" id="signInError" style="display:none;color:var(--accent);"></p>
         <p class="empty" id="signInInfo" style="display:none;color:var(--primary);"></p>
       </div>
@@ -767,7 +772,8 @@ el("switchBtn").addEventListener("click", () => {
   myId = "";
   showOnboarding();
 });
-el("signInBtn").addEventListener("click", handleSignIn);
+el("signInBtn").addEventListener("click", () => handleAuth("signin"));
+el("createAccountBtn").addEventListener("click", () => handleAuth("create"));
 el("signOutBtn").addEventListener("click", () => signOut(auth));
 
 function showSignIn(errorMessage) {
@@ -784,7 +790,7 @@ function showSignIn(errorMessage) {
   }
 }
 
-async function handleSignIn() {
+async function handleAuth(mode) {
   const errEl = el("signInError");
   const infoEl = el("signInInfo");
   errEl.style.display = "none";
@@ -807,38 +813,44 @@ async function handleSignIn() {
     return;
   }
 
-  el("signInBtn").disabled = true;
+  const signInBtn = el("signInBtn");
+  const createBtn = el("createAccountBtn");
+  signInBtn.disabled = true;
+  createBtn.disabled = true;
   try {
-    // Try to sign in first; if the account doesn't exist yet, create it.
-    try {
+    if (mode === "create") {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } else {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (err) {
-      if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
-        try {
-          await createUserWithEmailAndPassword(auth, email, password);
-        } catch (createErr) {
-          if (createErr.code === "auth/email-already-in-use") {
-            errEl.textContent = "Wrong password for this email. Please try again.";
-          } else if (createErr.code === "auth/weak-password") {
-            errEl.textContent = "Password is too weak. Use at least 6 characters.";
-          } else {
-            errEl.textContent = "Couldn't sign in. Please try again.";
-          }
-          errEl.style.display = "block";
-        }
-      } else if (err.code === "auth/wrong-password") {
-        errEl.textContent = "Wrong password for this email. Please try again.";
-        errEl.style.display = "block";
-      } else if (err.code === "auth/too-many-requests") {
-        errEl.textContent = "Too many attempts. Please wait a moment and try again.";
-        errEl.style.display = "block";
-      } else {
-        errEl.textContent = "Couldn't sign in. Please check your details and try again.";
-        errEl.style.display = "block";
-      }
     }
+  } catch (err) {
+    errEl.textContent = authErrorMessage(err.code, mode);
+    errEl.style.display = "block";
   } finally {
-    el("signInBtn").disabled = false;
+    signInBtn.disabled = false;
+    createBtn.disabled = false;
+  }
+}
+
+function authErrorMessage(code, mode) {
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "An account already exists for this email. Tap “Sign in” instead.";
+    case "auth/user-not-found":
+    case "auth/invalid-credential":
+      return mode === "signin"
+        ? "No account or wrong password for this email. New here? Tap “Create account”."
+        : "Couldn't create the account. Please try again.";
+    case "auth/wrong-password":
+      return "Wrong password for this email. Please try again.";
+    case "auth/weak-password":
+      return "Password is too weak. Use at least 6 characters.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please wait a moment and try again.";
+    case "auth/operation-not-allowed":
+      return "Email/password sign-in isn't enabled yet. Please contact the admin.";
+    default:
+      return "Something went wrong. Please check your details and try again.";
   }
 }
 
