@@ -64,6 +64,7 @@
   .btn.link{background:none;color:var(--ink-2);font-weight:600;text-decoration:underline;padding:8px;width:auto;}
   .signin-actions{display:flex;gap:10px;margin-top:2px;}
   .signin-actions .btn{flex:1;}
+  .claim-banner{font-size:13.5px;color:var(--primary);background:var(--primary-soft);border-radius:10px;padding:10px 12px;margin-bottom:10px;}
   .tag{
     display:inline-flex;align-items:center;padding:5px 11px;border-radius:999px;
     font-size:12px;font-weight:600;background:var(--primary-soft);color:var(--primary);
@@ -128,16 +129,18 @@
   <div class="content">
 
     <!-- SIGN IN -->
-    <div id="signin">
+    <div id="signin" class="hidden">
       <div class="card">
         <h2>Sign in to continue</h2>
-        <p class="sub">Use any personal email and a password. First time here? Enter your email and a password (6+ characters), then tap <b>Create account</b>. Coming back? Tap <b>Sign in</b>. This makes sure only you can edit your own profile.</p>
+        <p id="claimingBanner" class="claim-banner" style="display:none;"></p>
+        <p class="sub" id="signInSub">Use your registered email and password.</p>
         <input type="email" id="signInEmail" placeholder="you@example.com" autocomplete="email" />
         <input type="password" id="signInPassword" placeholder="Password (6+ characters)" autocomplete="current-password" />
         <div class="signin-actions">
           <button class="btn" id="signInBtn">Sign in</button>
           <button class="btn secondary" id="createAccountBtn">Create account</button>
         </div>
+        <button class="btn link" id="backToNameBtn" style="display:none;">← Choose a different name</button>
         <p class="empty" id="signInError" style="display:none;color:var(--accent);"></p>
         <p class="empty" id="signInInfo" style="display:none;color:var(--primary);"></p>
       </div>
@@ -147,14 +150,15 @@
     <div id="onboarding" class="hidden">
       <div class="card">
         <h2>Find yourself</h2>
-        <p class="sub">Search your name from the batch roster to claim your profile.</p>
+        <p class="sub">Search your name from the batch roster, then set up your login. You can only register the name that is you.</p>
         <input type="text" id="searchName" placeholder="Type your name…" />
         <div id="rosterResults"></div>
+        <button class="btn link" id="haveAccountBtn" style="margin-top:6px;">Already registered? Sign in</button>
       </div>
 
       <div class="card">
         <h2>Not on the list?</h2>
-        <p class="sub">Add yourself manually.</p>
+        <p class="sub">Add yourself manually, then set up your login on the next step.</p>
         <input type="text" id="newName" placeholder="Full name" />
         <select id="newMajor">
           <option value="">Major</option>
@@ -210,7 +214,6 @@
         </div>
 
         <div class="switch-link">
-          <button class="btn link" id="switchBtn">Not you? Switch profile</button>
           <button class="btn link" id="signOutBtn">Sign out (<span id="signedInAs"></span>)</button>
         </div>
       </div>
@@ -311,6 +314,9 @@ const el = (id) => document.getElementById(id);
 let allStudents = []; // [{id, ...data}]
 let allGroups = []; // [{id, subject, members: [ids], memberNames: [names], ...}]
 let myId = localStorage.getItem("tm_myId") || "";
+let pendingClaimId = "";      // roster id the user picked before signing up
+let pendingNewProfile = null; // {name, major, minor, subjects} for a manual add
+let dataLoaded = false;
 let selectedMinors = new Set();
 let selectedSubjects = new Set();
 let selectedSkills = new Set();
@@ -423,50 +429,109 @@ function renderRosterSearch() {
   matches.forEach(s => {
     const row = document.createElement("div");
     row.className = "roster-item";
-    row.innerHTML = `<div><div class="name">${s.name}</div><div class="meta">${s.major || ""}${s.minor?.length ? " · Minor: " + s.minor.join(", ") : ""}</div></div><span>Claim →</span>`;
-    row.onclick = () => claimProfile(s.id);
+    const claimedTag = s.ownerEmail ? `<span class="meta">already registered</span>` : `<span>Select →</span>`;
+    row.innerHTML = `<div><div class="name">${s.name}</div><div class="meta">${s.major || ""}${s.minor?.length ? " · Minor: " + s.minor.join(", ") : ""}</div></div>${claimedTag}`;
+    row.onclick = () => selectRosterName(s.id);
     results.appendChild(row);
   });
 }
 
-async function claimProfile(id) {
+// Step 1 (before auth): the user picks their name from the roster. We remember
+// it and move them to the sign-in screen; the name is only bound to their
+// account once they authenticate, and only if it isn't already taken.
+function selectRosterName(id) {
   const target = allStudents.find(s => s.id === id);
-  if (target?.ownerEmail && target.ownerEmail !== currentUserEmail) {
-    alert(`${target.name} has already been claimed by someone else. If this is a mistake, add yourself as a new entry instead.`);
+  if (!target) return;
+  pendingNewProfile = null;
+  pendingClaimId = id;
+  if (target.ownerEmail) {
+    showSignIn(`"${target.name}" is already registered. If this is you, sign in with your email & password.`);
+  } else {
+    showSignIn();
+  }
+}
+
+// Step 2 (after auth): permanently bind the chosen roster name to this account.
+async function bindProfile(id) {
+  const target = allStudents.find(s => s.id === id);
+  if (!target) { pendingClaimId = ""; showOnboarding(); return; }
+  if (target.ownerEmail && target.ownerEmail !== currentUserEmail) {
+    pendingClaimId = "";
+    pendingNewProfile = null;
+    alert(`"${target.name}" is already registered to another account. Please pick your own name, or add yourself manually.`);
+    await signOut(auth);
     return;
   }
-  try {
-    await setDoc(doc(db, "students", id), {
-      ownerEmail: currentUserEmail,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-  } catch (err) {
-    alert("Couldn't claim this profile — it may already belong to someone else.");
-    return;
+  if (!target.ownerEmail) {
+    try {
+      await setDoc(doc(db, "students", id), {
+        ownerEmail: currentUserEmail,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      target.ownerEmail = currentUserEmail;
+    } catch (err) {
+      pendingClaimId = "";
+      alert("Couldn't register this profile. Please try again.");
+      await signOut(auth);
+      return;
+    }
   }
-  if (target) target.ownerEmail = currentUserEmail;
   myId = id;
   localStorage.setItem("tm_myId", id);
+  pendingClaimId = "";
+  pendingNewProfile = null;
   showMain();
 }
 
-async function createProfile() {
+// Manual add (before auth): collect the details, then send them to sign-in.
+function startManualProfile() {
   const name = el("newName").value.trim();
   if (!name) { alert("Enter your name"); return; }
-  const id = slug(name);
-  const data = {
+  pendingClaimId = "";
+  pendingNewProfile = {
     name,
     major: el("newMajor").value || "",
     minor: Array.from(selectedMinors),
     subjects: Array.from(selectedSubjects),
+  };
+  showSignIn();
+}
+
+// Manual add (after auth): create the profile bound to this account.
+async function createBoundProfile(spec) {
+  const id = slug(spec.name);
+  const existing = allStudents.find(s => s.id === id);
+  if (existing && existing.ownerEmail && existing.ownerEmail !== currentUserEmail) {
+    pendingNewProfile = null;
+    alert("That name is already registered. Add a middle name or initial to make it unique.");
+    await signOut(auth);
+    return;
+  }
+  const data = {
+    name: spec.name,
+    major: spec.major || "",
+    minor: spec.minor || [],
+    subjects: spec.subjects || [],
     skills: [],
     custom: true,
     ownerEmail: currentUserEmail,
     updatedAt: serverTimestamp()
   };
-  await setDoc(doc(db, "students", id), data, { merge: true });
-  allStudents.push({ id, ...data });
-  claimProfile(id);
+  try {
+    await setDoc(doc(db, "students", id), data, { merge: true });
+  } catch (err) {
+    pendingNewProfile = null;
+    alert("Couldn't create your profile. Please try again.");
+    await signOut(auth);
+    return;
+  }
+  const idx = allStudents.findIndex(s => s.id === id);
+  if (idx >= 0) allStudents[idx] = { ...allStudents[idx], ...data }; else allStudents.push({ id, ...data });
+  myId = id;
+  localStorage.setItem("tm_myId", id);
+  pendingNewProfile = null;
+  pendingClaimId = "";
+  showMain();
 }
 
 function me() {
@@ -476,6 +541,7 @@ function me() {
 function showMain() {
   const person = me();
   if (!person) { showOnboarding(); return; }
+  el("signin").classList.add("hidden");
   el("onboarding").classList.add("hidden");
   el("main").classList.remove("hidden");
   el("myName").textContent = person.name;
@@ -518,11 +584,20 @@ function showMain() {
 }
 
 function showOnboarding() {
+  el("signin").classList.add("hidden");
   el("main").classList.add("hidden");
   el("tabbar").classList.add("hidden");
   el("onboarding").classList.remove("hidden");
   renderChipGroup(el("newMinorChips"), MINORS, selectedMinors);
   renderSubjectChipsByTrimester(el("newSubjectChips"), selectedSubjects);
+}
+
+function goToFindYourself() {
+  pendingClaimId = "";
+  pendingNewProfile = null;
+  el("searchName").value = "";
+  el("rosterResults").innerHTML = "";
+  showOnboarding();
 }
 
 function switchView(viewName) {
@@ -758,7 +833,9 @@ function addCustomSkill() {
 }
 
 el("searchName").addEventListener("input", renderRosterSearch);
-el("createProfileBtn").addEventListener("click", createProfile);
+el("createProfileBtn").addEventListener("click", startManualProfile);
+el("haveAccountBtn").addEventListener("click", () => { pendingClaimId = ""; pendingNewProfile = null; showSignIn(); });
+el("backToNameBtn").addEventListener("click", goToFindYourself);
 el("saveSkillsBtn").addEventListener("click", saveSkills);
 el("addSkillBtn").addEventListener("click", addCustomSkill);
 el("customSkillInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSkill(); } });
@@ -767,21 +844,52 @@ el("subjectSelect").addEventListener("change", () => { renderGroups(); renderCan
 document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => switchView(tab.dataset.view));
 });
-el("switchBtn").addEventListener("click", () => {
-  localStorage.removeItem("tm_myId");
-  myId = "";
-  showOnboarding();
-});
 el("signInBtn").addEventListener("click", () => handleAuth("signin"));
 el("createAccountBtn").addEventListener("click", () => handleAuth("create"));
 el("signOutBtn").addEventListener("click", () => signOut(auth));
+
+// Renders the "Registering as X" banner and shows/hides the Create-account
+// button depending on whether the user picked a name (new) or is a returning
+// user just signing in.
+function renderClaimBanner() {
+  const banner = el("claimingBanner");
+  const back = el("backToNameBtn");
+  const createBtn = el("createAccountBtn");
+  const sub = el("signInSub");
+  let name = "";
+  let alreadyClaimed = false;
+  if (pendingClaimId) {
+    const t = allStudents.find(s => s.id === pendingClaimId);
+    name = t?.name || "";
+    alreadyClaimed = !!t?.ownerEmail;
+  } else if (pendingNewProfile) {
+    name = pendingNewProfile.name;
+  }
+
+  if (name) {
+    banner.innerHTML = `Registering as <b>${name}</b>`;
+    banner.style.display = "block";
+    back.style.display = "block";
+    createBtn.style.display = alreadyClaimed ? "none" : "";
+    sub.textContent = alreadyClaimed
+      ? "This name is already registered. Sign in with the email & password you used."
+      : "New here? Set a password (6+ characters) and tap Create account. Already registered this name? Tap Sign in.";
+  } else {
+    banner.style.display = "none";
+    back.style.display = "none";
+    createBtn.style.display = "none";
+    sub.textContent = "Sign in with your registered email and password.";
+  }
+}
 
 function showSignIn(errorMessage) {
   el("signin").classList.remove("hidden");
   el("onboarding").classList.add("hidden");
   el("main").classList.add("hidden");
   el("tabbar").classList.add("hidden");
+  renderClaimBanner();
   const errEl = el("signInError");
+  el("signInInfo").style.display = "none";
   if (errorMessage) {
     errEl.textContent = errorMessage;
     errEl.style.display = "block";
@@ -810,6 +918,12 @@ async function handleAuth(mode) {
   if (!password || password.length < 6) {
     errEl.textContent = "Password must be at least 6 characters.";
     errEl.style.display = "block";
+    return;
+  }
+  if (mode === "create" && !pendingClaimId && !pendingNewProfile) {
+    errEl.textContent = "Please choose your name first.";
+    errEl.style.display = "block";
+    goToFindYourself();
     return;
   }
 
@@ -854,30 +968,56 @@ function authErrorMessage(code, mode) {
   }
 }
 
+// Attach the live data listeners once, regardless of auth state, so the
+// roster is available on the "Find yourself" screen before sign-in.
+async function ensureData() {
+  if (dataLoaded) return;
+  dataLoaded = true;
+  await Promise.all([loadRoster(), loadGroups()]);
+}
+
 onAuthStateChanged(auth, async (user) => {
-  const email = user?.email || null;
-  const domainOk = !ALLOWED_EMAIL_DOMAIN || (email && email.toLowerCase().endsWith("@" + ALLOWED_EMAIL_DOMAIN));
-  if (!email || !domainOk) {
-    const wasWrongDomain = !!email;
+  await ensureData();
+
+  const email = user?.email?.toLowerCase() || null;
+  const domainOk = !ALLOWED_EMAIL_DOMAIN || (email && email.endsWith("@" + ALLOWED_EMAIL_DOMAIN));
+  if (email && !domainOk) {
     currentUserEmail = null;
-    if (wasWrongDomain) await signOut(auth);
-    showSignIn(wasWrongDomain ? `Please sign in with an @${ALLOWED_EMAIL_DOMAIN} account.` : null);
+    await signOut(auth);
+    showOnboarding();
+    return;
+  }
+  currentUserEmail = email;
+
+  if (!currentUserEmail) {
+    // Not signed in: show sign-in if a name is already picked, else Find yourself.
+    if (pendingClaimId || pendingNewProfile) showSignIn();
+    else showOnboarding();
     return;
   }
 
-  currentUserEmail = email;
   el("signedInAs").textContent = currentUserEmail;
-  el("signin").classList.add("hidden");
 
-  await Promise.all([loadRoster(), loadGroups()]);
-  const person = me();
-  if (myId && person && person.ownerEmail === currentUserEmail) {
+  // Route by the profile this account already owns — this is what stops anyone
+  // from being taken to (or claiming) someone else's name on a later login.
+  const owned = allStudents.find(s => s.ownerEmail === currentUserEmail);
+  if (owned) {
+    myId = owned.id;
+    localStorage.setItem("tm_myId", myId);
+    pendingClaimId = "";
+    pendingNewProfile = null;
     showMain();
+  } else if (pendingClaimId) {
+    await bindProfile(pendingClaimId);
+  } else if (pendingNewProfile) {
+    await createBoundProfile(pendingNewProfile);
   } else {
+    // Signed in but never registered a name yet → send to Find yourself.
     myId = "";
     localStorage.removeItem("tm_myId");
     showOnboarding();
   }
+
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
